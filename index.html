@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UP TGT मॉक टेस्ट - एडमिन पैनल</title>
+    <!-- Firebase SDK कॉलिंग -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <style>
+        :root {
+            --primary: #1e3a8a; --primary-light: #3b82f6; --success: #16a34a;
+            --danger: #dc2626; --warning: #d97706; --purple: #7c3aed;
+            --bg: #f3f4f6; --card: #ffffff; --text: #1f2937;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; min-height: 100vh; }
+        
+        /* अपडेट नोटिफिकेशन बैनर */
+        #updateBanner { display: none; background: var(--warning); color: white; padding: 10px; text-align: center; font-weight: bold; font-size: 0.9rem; }
+        
+        header { background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .app-title { font-size: 1.1rem; font-weight: 700; }
+        .app-subtitle { font-size: 0.75rem; opacity: 0.9; }
+        .timer-box { background: rgba(0,0,0,0.25); padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.3); display: none; }
+        .timer-box.low-time { background: var(--danger); animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+
+        .screen { display: none; flex: 1; padding: 16px; max-width: 800px; margin: 0 auto; width: 100%; }
+        .screen.active { display: flex; flex-direction: column; }
+
+        .welcome-card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); margin-bottom: 16px; }
+        .welcome-card h2 { color: var(--primary); margin-bottom: 12px; font-size: 1.3rem; }
+        
+        .json-section { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 16px; margin-top: 15px; }
+        .json-section h3 { font-size: 1rem; color: var(--primary); margin-bottom: 8px; }
+        .json-section textarea { width: 100%; height: 90px; padding: 8px; border: 1px solid #94a3b8; border-radius: 6px; font-family: monospace; font-size: 0.85rem; margin-bottom: 8px; resize: vertical; }
+        
+        .ai-generator-box { background: #0f111a; border-radius: 12px; padding: 16px; color: #fff; margin-top: 15px; }
+        .ai-generator-box h3 { color: #BB86FC; margin-bottom: 8px; font-size: 1.1rem; }
+
+        .file-upload-box { border: 2px dashed var(--primary-light); background: #eff6ff; padding: 14px; border-radius: 8px; text-align: center; margin-bottom: 12px; cursor: pointer; }
+        .progress-container { background: #e5e7eb; border-radius: 8px; overflow: hidden; height: 16px; margin: 10px 0; display: none; }
+        .progress-bar { background: var(--success); height: 100%; width: 0%; text-align: center; font-size: 0.75rem; color: white; font-weight: bold; transition: width 0.3s; }
+
+        .db-stats { background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px; border-radius: 8px; margin: 15px 0; font-size: 0.95rem; font-weight: 700; color: var(--primary); text-align: center; }
+
+        .quiz-top-bar { display: flex; justify-content: space-between; align-items: center; background: var(--card); padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+        .topic-tag { background: #e0e7ff; color: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .exam-badge { background: #fef3c7; color: #d97706; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; border: 1px solid #fde68a; margin-left: 6px; display: inline-block; }
+        .q-counter { font-weight: 700; color: #4b5563; }
+
+        .question-card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); margin-bottom: 16px; flex: 1; }
+        .q-text { font-size: 1.1rem; font-weight: 600; line-height: 1.5; margin-bottom: 20px; color: #111827; overflow-x: auto; white-space: pre-line; }
+        
+        table { width: 100% !important; border-collapse: collapse !important; margin: 12px 0 !important; background: #ffffff; }
+        th, td { border: 1px solid #cbd5e1 !important; padding: 8px 10px !important; text-align: left !important; font-size: 0.95rem !important; word-break: break-word; }
+        th { background-color: #f1f5f9 !important; color: var(--primary); }
+
+        .options-list { display: flex; flex-direction: column; gap: 12px; }
+        .option-btn { background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; text-align: left; font-size: 1rem; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 12px; }
+        .option-btn.selected { background: #eff6ff; border-color: var(--primary-light); font-weight: 600; color: var(--primary); }
+        .opt-circle { width: 28px; height: 28px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; flex-shrink: 0; }
+        .option-btn.selected .opt-circle { background: var(--primary-light); color: white; }
+
+        .action-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        .nav-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn { padding: 12px 16px; border: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; text-align: center; }
+        .btn-primary { background: var(--primary); color: white; width: 100%; }
+        .btn-success { background: var(--success); color: white; width: 100%; }
+        .btn-danger { background: var(--danger); color: white; width: 100%; }
+        .btn-outline { background: white; border: 1px solid #d1d5db; color: #374151; }
+        .btn-purple { background: var(--purple); color: white; width: 100%; }
+    </style>
+</head>
+<body>
+
+<!-- ऑटो-अपडेट नोटिफिकेशन बैनर -->
+<div id="updateBanner">
+    ⚠️ एडमिन ऐप का नया वर्जन उपलब्ध है! कृपया लेटेस्ट कोड सिंक करें।
+</div>
+
+<header>
+    <div>
+        <div class="app-title">UP TGT मॉक टेस्ट (Admin Panel)</div>
+        <div class="app-subtitle">GitHub Hosted | AI जनरेटर, सैंपल टेस्ट और प्रश्न प्रबंधक</div>
+    </div>
+    <div class="timer-box" id="timerDisplay">
+        <span>⏱️</span> <span id="timeText">120:00</span>
+    </div>
+</header>
+
+<!-- 1. एडमिन होम स्क्रीन -->
+<div class="screen active" id="adminScreen">
+    <div class="welcome-card">
+        <h2>एडमिन कंट्रोल पैनल</h2>
+        <div class="db-stats" id="dbStatsText">📊 डेटाबेस स्टेटस लोड हो रहा है...</div>
+
+        <!-- एडमिन के दो अलग मॉक टेस्ट और मैनेजर विकल्प -->
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="startAdminSampleQuiz()">🧪 सैंपल मॉक टेस्ट (स्टूडेंट पैटर्न)</button>
+            <button class="btn btn-purple" onclick="openQuestionManager()">📋 सभी प्रश्न देखें & प्रबंधित करें</button>
+        </div>
+
+        <!-- AI PDF/Image JSON जनरेटर -->
+        <div class="ai-generator-box">
+            <h3>✨ AI PDF/Image JSON जनरेटर</h3>
+            <p style="font-size: 12px; color: #A1A1AA; margin-bottom: 10px;">PDF या कैमरा फोटो अपलोड करें, AI JSON बनाकर देगा।</p>
+            <input type="password" id="geminiKey" placeholder="Gemini API Key डालें" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #333; background: #2a2a35; color: white; margin-bottom: 8px;">
+            <input type="file" id="aiFileInput" accept="image/*,application/pdf" style="width: 100%; padding: 6px; background: #2a2a35; color: white; border-radius: 5px; margin-bottom: 8px;">
+            <button class="btn btn-success" onclick="processWithAI()" id="aiProcessBtn">🤖 AI से JSON बनाएँ</button>
+            <div id="aiStatus" style="font-size: 12px; color: #FFB86C; margin-top: 5px; text-align: center;"></div>
+        </div>
+
+        <!-- JSON फाइल/पेस्ट अपलोड सेक्शन -->
+        <div class="json-section">
+            <h3>📥 JSON पैक अपलोड करें</h3>
+            <div class="file-upload-box" onclick="document.getElementById('jsonFile').click()">
+                📁 <b id="fileNameDisplay">क्लिक करके .json फ़ाइल चुनें</b>
+                <input type="file" id="jsonFile" accept=".json" style="display:none;" onchange="handleFileSelect(event)">
+            </div>
+            <textarea id="jsonInputBox" placeholder='या यहाँ JSON पेस्ट करें...'></textarea>
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar" id="progressBar">0%</div>
+            </div>
+            <button class="btn btn-success" onclick="uploadJsonToCloud()">क्लाउड पर सुरक्षित अपलोड करें ☁️➕</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2. सैंपल मॉक टेस्ट स्क्रीन (स्टूडेंट पैटर्न) -->
+<div class="screen" id="quizScreen">
+    <div class="quiz-top-bar">
+        <div>
+            <span class="topic-tag" id="topicBadge">विषय</span>
+            <span class="exam-badge" id="examBadge" style="display:none;"></span>
+        </div>
+        <span class="q-counter" id="qCounterText">प्रश्न 1 / 120</span>
+    </div>
+    <div class="question-card">
+        <div class="q-text" id="questionText">प्रश्न लोड हो रहा है...</div>
+        <div class="options-list" id="optionsContainer"></div>
+    </div>
+    <div class="action-bar">
+        <button class="btn btn-outline" onclick="backToAdminHome()">⬅️ एडमिन होम</button>
+        <button class="btn btn-danger" onclick="confirmSubmit()">टेस्ट समाप्त करें</button>
+    </div>
+    <div class="nav-bar" style="grid-template-columns: 1fr 1fr;">
+        <button class="btn btn-outline" id="prevBtn" onclick="prevQuestion()">⬅️ पिछला</button>
+        <button class="btn btn-primary" id="nextBtn" onclick="nextQuestion()">अगला ➡️</button>
+    </div>
+</div>
+
+<!-- 3. प्रश्न प्रबंधक स्क्रीन (अगला, पिछला, डिलीट) -->
+<div class="screen" id="managerScreen">
+    <div class="quiz-top-bar">
+        <span class="topic-tag" id="mTopicBadge">विषय</span>
+        <span class="q-counter" id="mCounterText">प्रश्न 1 / 1</span>
+    </div>
+    <div class="question-card">
+        <div class="q-text" id="mQuestionText">प्रश्न लोड हो रहा है...</div>
+        <div class="options-list" id="mOptionsContainer"></div>
+        <div style="margin-top: 15px; padding: 10px; background: #f8fafc; border-radius: 8px; font-size: 0.9rem;" id="mExpBox"><b>व्याख्या:</b> ...</div>
+    </div>
+    <div class="action-bar">
+        <button class="btn btn-outline" onclick="backToAdminHome()">⬅️ एडमिन होम</button>
+        <button class="btn btn-danger" onclick="deleteCurrentQuestion()">🗑️ यह प्रश्न डिलीट करें</button>
+    </div>
+    <div class="nav-bar" style="grid-template-columns: 1fr 1fr;">
+        <button class="btn btn-outline" id="mPrevBtn" onclick="mPrevQuestion()">⬅️ पिछला</button>
+        <button class="btn btn-primary" id="mNextBtn" onclick="mNextQuestion()">अगला ➡️</button>
+    </div>
+</div>
+
+<script>
+    // --- फायरबेस कॉन्फिगरेशन ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyB1_7q8pnOsBlGzkD8LkQUJwTO1QlT7kZg",
+      authDomain: "uptgt-59417.firebaseapp.com",
+      projectId: "uptgt-59417",
+      storageBucket: "uptgt-59417.firebasestorage.app",
+      messagingSenderId: "917952980664",
+      appId: "1:917952980664:web:aab8b7a53a893c5453b64d",
+      measurementId: "G-5RTDRWPF08"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const CURRENT_APP_VERSION = "2.3"; // एडमिन ऐप का वर्तमान वर्जन
+    let allCloudQuestions = [];
+    let currentDocIds = []; // डिलीट करने के लिए डॉक्यूमेंट आईडी ट्रैकर
+
+    // 1. डेटाबेस से लाइव डेटा लाना और काउंट करना
+    function fetchCloudData() {
+        db.collection("uptgt_question_packs").get().then((querySnapshot) => {
+            allCloudQuestions = [];
+            currentDocIds = [];
+            querySnapshot.forEach((doc) => {
+                const qs = doc.data().questions || [];
+                qs.forEach(q => {
+                    allCloudQuestions.push(q);
+                    currentDocIds.push(doc.id);
+                });
+            });
+            document.getElementById('dbStatsText').innerHTML = `📊 कुल क्लाउड प्रश्न: <b>${allCloudQuestions.length}</b>`;
+        }).catch((err) => { console.log(err); });
+    }
+
+    // 2. ऑटो-अपडेट चेकर लॉजिक
+    function checkForAppUpdates() {
+        db.collection("admin_settings").doc("version_control").get().then((doc) => {
+            if (doc.exists) {
+                let latestVersion = doc.data().version;
+                if (latestVersion && latestVersion !== CURRENT_APP_VERSION) {
+                    document.getElementById('updateBanner').style.display = 'block';
+                }
+            }
+        }).catch(err => console.log(err));
+    }
+
+    function backToAdminHome() {
+        if(typeof timerInterval !== 'undefined') clearInterval(timerInterval);
+        document.getElementById('quizScreen').classList.remove('active');
+        document.getElementById('managerScreen').classList.remove('active');
+        document.getElementById('adminScreen').classList.add('active');
+        document.getElementById('timerDisplay').style.display = 'none';
+        fetchCloudData();
+    }
+
+    // --- 3. AI JSON GENERATOR (PDF & Camera Image Support) ---
+    async function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = error => reject(error);
+        });
+    }
+
+    async function processWithAI() {
+        const key = document.getElementById('geminiKey').value.trim();
+        const fileInput = document.getElementById('aiFileInput');
+        const status = document.getElementById('aiStatus');
+        if (!key) { alert('Gemini API Key डालें!'); return; }
+        if (fileInput.files.length === 0) { alert('PDF या इमेज चुनें!'); return; }
+
+        status.innerText = 'AI डॉक्यूमेंट स्कैन कर रहा है...';
+        try {
+            const base64 = await fileToBase64(fileInput.files[0]);
+            const prompt = `Extract all questions from this document in strict JSON format array: 
+            [{"topic":"...","type":"gs/hindi","exam":"...","q":"...","options":["...","...","...","..."],"ans":0,"exp":"..."}]
+            Ensure HTML tables use single quotes for attributes.`;
+            
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: fileInput.files[0].type, data: base64 } }] }] })
+            });
+            const data = await res.json();
+            if(data.error) throw new Error(data.error.message);
+
+            let text = data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim();
+            document.getElementById('jsonInputBox').value = text;
+            status.innerText = '✅ JSON तैयार है! अब क्लाउड पर अपलोड करें।';
+        } catch (e) {
+            status.innerText = '❌ एरर: ' + e.message;
+        }
+    }
+
+    // --- 4. सैंपल मॉक टेस्ट इंजन (स्टूडेंट पैटर्न) ---
+    let activeQuestions = [], currentIndex = 0, userAnswers = [], timerInterval = null, remainingSeconds = 120 * 60;
+
+    function startAdminSampleQuiz() {
+        if (allCloudQuestions.length === 0) { alert("डेटाबेस में प्रश्न नहीं हैं!"); return; }
+        activeQuestions = [...allCloudQuestions].sort(() => 0.5 - Math.random()).slice(0, 120);
+        currentIndex = 0;
+        userAnswers = new Array(activeQuestions.length).fill(null);
+        remainingSeconds = 120 * 60;
+
+        document.getElementById('adminScreen').classList.remove('active');
+        document.getElementById('quizScreen').classList.add('active');
+        document.getElementById('timerDisplay').style.display = 'flex';
+        loadQuizQuestion(0);
+        startTimer();
+    }
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            remainingSeconds--;
+            let m = Math.floor(remainingSeconds / 60), s = remainingSeconds % 60;
+            document.getElementById('timeText').textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            if (remainingSeconds <= 0) { clearInterval(timerInterval); alert("समय समाप्त!"); backToAdminHome(); }
+        }, 1000);
+    }
+
+    function loadQuizQuestion(index) {
+        currentIndex = index;
+        const item = activeQuestions[index];
+        document.getElementById('topicBadge').textContent = item.topic || 'प्रश्न';
+        document.getElementById('qCounterText').textContent = `प्रश्न ${index + 1} / ${activeQuestions.length}`;
+        document.getElementById('questionText').innerHTML = `प्र. ${index + 1}: ${item.q}`;
+        
+        const container = document.getElementById('optionsContainer');
+        container.innerHTML = '';
+        item.options.forEach((opt, optIdx) => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn' + (userAnswers[index] === optIdx ? ' selected' : '');
+            btn.innerHTML = `<span class="opt-circle">${['A','B','C','D'][optIdx]}</span> <span>${opt}</span>`;
+            btn.onclick = () => { userAnswers[currentIndex] = optIdx; loadQuizQuestion(currentIndex); };
+            container.appendChild(btn);
+        });
+        document.getElementById('prevBtn').disabled = (index === 0);
+        document.getElementById('nextBtn').textContent = (index === activeQuestions.length - 1) ? 'समाप्त' : 'अगला ➡️';
+    }
+
+    function prevQuestion() { if (currentIndex > 0) loadQuizQuestion(currentIndex - 1); }
+    function nextQuestion() { 
+        if (currentIndex < activeQuestions.length - 1) loadQuizQuestion(currentIndex + 1); 
+        else alert("यह अंतिम प्रश्न है।"); 
+    }
+    function confirmSubmit() { if (confirm("टेस्ट बंद करें?")) backToAdminHome(); }
+
+    // --- 5. प्रश्न प्रबंधक (अगला, पिछला, डिलीट) ---
+    let mIndex = 0;
+    function openQuestionManager() {
+        if (allCloudQuestions.length === 0) { alert("कोई प्रश्न उपलब्ध नहीं है!"); return; }
+        mIndex = 0;
+        document.getElementById('adminScreen').classList.remove('active');
+        document.getElementById('managerScreen').classList.add('active');
+        loadManagerQuestion(0);
+    }
+
+    function loadManagerQuestion(idx) {
+        mIndex = idx;
+        const item = allCloudQuestions[idx];
+        document.getElementById('mTopicBadge').textContent = item.topic || 'प्रश्न';
+        document.getElementById('mCounterText').textContent = `प्रश्न ${idx + 1} / ${allCloudQuestions.length}`;
+        document.getElementById('mQuestionText').innerHTML = `प्र. ${idx + 1}: ${item.q}`;
+        document.getElementById('mExpBox').innerHTML = `<b>व्याख्या:</b> ${item.exp || 'उपलब्ध नहीं'}`;
+
+        const container = document.getElementById('mOptionsContainer');
+        container.innerHTML = '';
+        item.options.forEach((opt, optIdx) => {
+            const div = document.createElement('div');
+            div.className = 'option-btn' + (item.ans === optIdx ? ' selected' : '');
+            div.innerHTML = `<span class="opt-circle">${['A','B','C','D'][optIdx]}</span> <span>${opt}</span>`;
+            container.appendChild(div);
+        });
+        document.getElementById('mPrevBtn').disabled = (idx === 0);
+        document.getElementById('mNextBtn').disabled = (idx === allCloudQuestions.length - 1);
+    }
+
+    function mPrevQuestion() { if (mIndex > 0) loadManagerQuestion(mIndex - 1); }
+    function mNextQuestion() { if (mIndex < allCloudQuestions.length - 1) loadManagerQuestion(mIndex + 1); }
+
+    async function deleteCurrentQuestion() {
+        if (!confirm("क्या आप वाकई इस प्रश्न को डेटाबेस से डिलीट करना चाहते हैं?")) return;
+        try {
+            const docId = currentDocIds[mIndex];
+            await db.collection("uptgt_question_packs").doc(docId).delete();
+            alert("प्रश्न सफलतापूर्वक डिलीट हो गया!");
+            fetchCloudData();
+            setTimeout(() => { backToAdminHome(); }, 500);
+        } catch (e) {
+            alert("डिलीट फेल: " + e.message);
+        }
+    }
+
+    // --- 6. सामान्य अपलोड फंक्शन्स ---
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        document.getElementById('fileNameDisplay').textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = (e) => { document.getElementById('jsonInputBox').value = e.target.result; };
+        reader.readAsText(file);
+    }
+
+    async function uploadJsonToCloud() {
+        const text = document.getElementById('jsonInputBox').value.trim();
+        if (!text) { alert("अपलोड करने के लिए डेटा नहीं है!"); return; }
+        try {
+            const questions = JSON.parse(text);
+            const packId = "pack_" + Date.now();
+            await db.collection("uptgt_question_packs").doc(packId).set({ 
+                questions, 
+                createdAt: firebase.firestore.FieldValue.serverTimestamp() 
+            });
+            alert("सफलतापूर्वक क्लाउड पर अपलोड हो गया!");
+            document.getElementById('jsonInputBox').value = '';
+            fetchCloudData();
+        } catch (e) {
+            alert("JSON पार्सिंग या अपलोड एरर: " + e.message);
+        }
+    }
+
+    // पेज लोड होने पर ऑटो-डेटा और अपडेट चेकर रन होंगे
+    window.onload = function() { 
+        fetchCloudData(); 
+        checkForAppUpdates();
+    };
+</script>
+</body>
+</html>
